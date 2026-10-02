@@ -4,58 +4,64 @@ import {
   correspondenceFor,
   documentsAsOf,
   documentsTouched,
-  nextMoment,
+  generalNotes,
   sortMoments,
 } from "./timeline";
 
 const moment = (id: string) => fixture.moments.find((m) => m.id === id)!;
+const find = (docs: ReturnType<typeof documentsAsOf>, id: string) =>
+  docs.find((d) => d.document.id === id)!;
 
 describe("timeline-driven document state", () => {
   it("shows the latest version of every document with no selection", () => {
-    const docs = documentsAsOf(fixture, null);
-    const proposal = docs.find((d) => d.document.id === "doc_proposal")!;
-    expect(proposal.version?.number).toBe(2);
+    const docs = documentsAsOf(fixture.documents, null);
+    expect(find(docs, "proposal").version?.number).toBe(3);
     expect(docs.every((d) => d.version !== null)).toBe(true);
   });
 
-  it("sorts pinned documents to the far left", () => {
-    const docs = documentsAsOf(fixture, null);
-    expect(docs[0].document.pinned).toBe(true);
+  it("sorts pinned documents to the far left, then seller order", () => {
+    const ids = documentsAsOf(fixture.documents, null).map((d) => d.document.id);
+    expect(ids).toEqual(["brief", "proposal", "deck", "shortlist", "measure"]);
   });
 
-  it("shows the version current at the selected moment", () => {
-    const docs = documentsAsOf(fixture, moment("m_feedback"));
-    const proposal = docs.find((d) => d.document.id === "doc_proposal")!;
-    expect(proposal.version?.number).toBe(1);
+  it("puts the most recently pinned document leftmost", () => {
+    const ids = documentsAsOf(fixture.documents, null, ["measure", "brief"]).map((d) => d.document.id);
+    expect(ids.slice(0, 2)).toEqual(["measure", "brief"]);
+  });
+
+  it("shows the version current on the moment's day", () => {
+    const docs = documentsAsOf(fixture.documents, moment("m_v2_feedback"));
+    expect(find(docs, "proposal").version?.number).toBe(2);
+    // A version committed the same day as the moment counts.
+    expect(find(documentsAsOf(fixture.documents, moment("m_v3")), "proposal").version?.number).toBe(3);
   });
 
   it("marks documents that did not exist yet as not shared", () => {
-    const docs = documentsAsOf(fixture, moment("m_kickoff"));
-    const shortlist = docs.find((d) => d.document.id === "doc_shortlist")!;
-    expect(shortlist.version).toBeNull();
+    const docs = documentsAsOf(fixture.documents, moment("m_first_call"));
+    expect(find(docs, "measure").version).toBeNull();
+    expect(find(docs, "measure").changes).toEqual([]);
   });
 
-  it("attaches the changes made at that moment", () => {
-    const docs = documentsAsOf(fixture, moment("m_proposal_v2"));
-    const plan = docs.find((d) => d.document.id === "doc_media_plan")!;
-    expect(plan.changes.map((c) => c.kind)).toEqual(["changed"]);
-    expect(documentsTouched(moment("m_proposal_v2"))).toBe(4);
+  it("splits card notes from banner notes", () => {
+    const m = moment("m_v2_feedback");
+    const docs = documentsAsOf(fixture.documents, m);
+    expect(find(docs, "proposal").changes.map((c) => c.kind)).toEqual(["changed", "changed"]);
+    expect(generalNotes(m).map((c) => c.text)).toEqual(["Revised proposal by Sep 22"]);
+    expect(documentsTouched(m)).toBe(2);
   });
 
   it("treats the pending moment as today", () => {
-    const docs = documentsAsOf(fixture, moment("m_pending"));
-    expect(docs.find((d) => d.document.id === "doc_proposal")!.version?.number).toBe(2);
+    const docs = documentsAsOf(fixture.documents, moment("m_feedback_due"));
+    expect(find(docs, "proposal").version?.number).toBe(3);
   });
 
-  it("filters correspondence to the moment", () => {
-    const entries = correspondenceFor(fixture.correspondence, moment("m_feedback"));
-    expect(entries.map((e) => e.id)).toEqual(["c_feedback"]);
+  it("filters correspondence to the moment, newest first", () => {
+    const entries = correspondenceFor(fixture.correspondence, moment("m_v2_feedback"));
+    expect(entries.map((e) => e.subject)).toEqual(["Feedback on v2", "Proposal v2 sent"]);
   });
 
-  it("keeps the pending node last and links to the next moment", () => {
+  it("keeps the pending node last", () => {
     const sorted = sortMoments(fixture.moments);
     expect(sorted[sorted.length - 1].kind).toBe("pending");
-    expect(nextMoment(fixture.moments, moment("m_proposal_v2"))?.id).toBe("m_pending");
-    expect(nextMoment(fixture.moments, moment("m_pending"))).toBeNull();
   });
 });

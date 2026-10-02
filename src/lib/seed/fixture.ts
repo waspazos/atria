@@ -1,27 +1,235 @@
-// Seed fixture: Microsoft · Xbox — Summer Creator Package ($120K), sold by
-// a Northlight-style seller team. This is the single source of truth for
-// demo data: the UI renders from it when Supabase isn't configured, and
-// scripts/gen-seed-sql.ts turns it into supabase/seed.sql.
+// Seed fixture: Lumen Interactive · Arcadia — Summer Creator Package ($120K),
+// sold by Northlight Media. Content mirrors the Client Space v7 design.
+//
+// Everything here is fictional and safe to share: brands, people, documents
+// and numbers are invented. Don't put real client data in this file. This is the
+// single source of truth for demo data: the UI renders from it when Supabase
+// isn't configured, and scripts/gen-seed-sql.ts turns it into
+// supabase/seed.sql.
 //
 // Must stay free of runtime imports so Node can run the generator directly.
 
-import type { ClientSpaceView } from "../domain/types";
+import type {
+  ChangeKind,
+  ClientSpaceView,
+  CorrespondenceEntry,
+  DocumentKind,
+  DocumentSection,
+  MomentKind,
+  Presence,
+  Side,
+  SpaceDocument,
+  TimelineMoment,
+} from "../domain/types";
 
-const SPACE = "spc_xbox_summer";
-const DEAL = "deal_xbox_summer";
-const ACCOUNT = "acct_xbox";
+const SPACE = "spc_arcadia_summer";
+const DEAL = "deal_arcadia_summer";
+const ACCOUNT = "acct_arcadia";
 
-export const DEMO_LINK_TOKEN = "demo-xbox-summer";
+export const DEMO_LINK_TOKEN = "demo-arcadia-summer";
+
+/** "Sep 22" → ISO timestamp at midday UTC, 2026. */
+const at = (day: string) => {
+  const [mon, d] = day.split(" ");
+  const m = { Aug: "08", Sep: "09", Oct: "10" }[mon];
+  return `2026-${m}-${d.padStart(2, "0")}T12:00:00Z`;
+};
+
+// ─── People ─────────────────────────────────────────────────────────────────
+
+type PersonRow = [id: string, name: string, title: string, side: Side, color: string, presence: Presence];
+const PEOPLE: PersonRow[] = [
+  ["AR", "Alex Romero", "Brand manager", "buyer", "#7c8b6f", { kind: "viewing" }],
+  ["KL", "Kim Lee", "Media lead", "buyer", "#a08a9a", { kind: "seen", at: at("Sep 30") }],
+  ["SP", "Sam Patel", "Agency planner", "buyer", "#8f8a7c", { kind: "invited", at: at("Sep 30") }],
+  ["MC", "Maya Chen", "Sales lead", "seller", "#8a7f73", { kind: "viewing" }],
+  ["JA", "Jordan Ali", "Strategy", "seller", "#c07a4f", { kind: "seen", at: at("Sep 29") }],
+  ["PR", "Priya Rao", "Measurement", "seller", "#6f8a9a", { kind: "seen", at: at("Sep 26") }],
+];
+const pid = (initials: string) => `p_${initials.toLowerCase()}`;
+
+// ─── Documents ──────────────────────────────────────────────────────────────
+
+let sectionSeq = 0;
+const S = (number: number, heading: string, ...paragraphs: string[]): DocumentSection => ({
+  id: `sec_${++sectionSeq}`,
+  number,
+  heading,
+  paragraphs,
+});
+
+type VersionRow = { by: string; when: string; summary: string; sections: DocumentSection[] };
+const doc = (
+  id: string,
+  kind: DocumentKind,
+  title: string,
+  position: number,
+  pinned: boolean,
+  versions: VersionRow[],
+): SpaceDocument => ({
+  id,
+  spaceId: SPACE,
+  title,
+  kind,
+  source: "google_drive",
+  pinned,
+  position,
+  versions: versions.map((v, i) => ({
+    id: `${id}_v${i + 1}`,
+    documentId: id,
+    number: i + 1,
+    committedAt: at(v.when),
+    sharedByPersonId: pid(v.by),
+    summary: v.summary,
+    sections: v.sections,
+  })),
+});
+
+const DOCUMENTS: SpaceDocument[] = [
+  doc("proposal", "doc", "Summer Creator Proposal", 0, false, [
+    { by: "MC", when: "Sep 9", summary: "Fourteen creators across three tiers over a two-month flight, $128K.", sections: [
+      S(1, "Overview", "Fourteen creators across three tiers over a two-month flight."),
+      S(2, "Pricing", "Total investment $128,000."),
+    ] },
+    { by: "MC", when: "Sep 15", summary: "Thirteen creators across three tiers over June and July, $124K.", sections: [
+      S(1, "Overview", "Thirteen creators across three tiers, June and July."),
+      S(2, "Creator roster", "Tier 1: four creators. Tier 2: five creators. Tier 3: four creators."),
+      S(3, "Pricing", "Total investment $124,000."),
+    ] },
+    { by: "MC", when: "Sep 22", summary: "Twelve creators across three tiers, June to August, anchored by two tentpole streams.", sections: [
+      S(1, "Overview", "Twelve creators across three tiers deliver a three-month presence on Twitch and YouTube, anchored by two tentpole livestreams aligned to Arcadia Pass summer drops."),
+      S(2, "Creator roster", "Tier 1: three creators with dedicated streams and integrated segments. Tier 2: five creators running sponsored sessions plus short-form cutdowns. Tier 3: four creators providing community posts and codes."),
+      S(3, "Pricing", "Tier 1 $54,000. Tier 2 $42,000. Tier 3 $14,000. Production and reporting $10,000. Total $120,000.", "Payment terms: 50% on signature, 50% on completion of the August flight."),
+      S(4, "Flight plan", "June launches the roster with a Tier 1 tentpole stream. July sustains weekly sponsored sessions. August closes with the second tentpole and a community recap.", "Creative approvals run on a 48-hour turnaround with Arcadia brand marketing."),
+    ] },
+  ]),
+  doc("deck", "slides", "Walkthrough Deck", 1, false, [
+    { by: "JA", when: "Sep 25", summary: "Slides from the September 25 call: tiers, roster, and measurement.", sections: [
+      S(1, "Agenda", "Package tiers, creator roster, measurement approach, next steps."),
+      S(2, "Next steps", "Arcadia to share feedback on tiers by October 6."),
+    ] },
+  ]),
+  doc("shortlist", "sheet", "Creator Shortlist", 2, false, [
+    { by: "MC", when: "Sep 12", summary: "Eighteen candidates under review across Twitch and YouTube.", sections: [
+      S(1, "Shortlist", "Eighteen candidates under review across Twitch and YouTube."),
+    ] },
+    { by: "MC", when: "Sep 22", summary: "The twelve selected creators with audience fit, reach, and alternates.", sections: [
+      S(1, "Selection", "Twelve creators selected from eighteen reviewed, grouped by reach and format."),
+      S(2, "Alternates", "Two alternates are held per tier in case of availability conflicts in June."),
+    ] },
+  ]),
+  doc("measure", "doc", "Measurement Plan", 3, false, [
+    { by: "PR", when: "Sep 26", summary: "How reach, sentiment, and Arcadia Pass trials are tracked and reported.", sections: [
+      S(1, "Metrics", "View-through, qualified sentiment, and Arcadia Pass trial sign-ups via creator codes."),
+      S(2, "Reporting", "Monthly reports during the flight and a wrap report two weeks after close."),
+    ] },
+  ]),
+  doc("brief", "doc", "Summer Brief", 4, true, [
+    { by: "AR", when: "Sep 2", summary: "Your original brief: 18–34 gamers on Twitch and YouTube, $100–130K.", sections: [
+      S(1, "Objective", "Cultural reach among 18–34 gamers for the Arcadia Pass summer lineup."),
+      S(2, "Budget", "$100,000–130,000 inclusive of fees, production, and reporting."),
+    ] },
+  ]),
+];
+
+// ─── Timeline ───────────────────────────────────────────────────────────────
+
+type Note = [kind: ChangeKind, text: string, documentId?: string];
+const moment = (
+  id: string,
+  kind: MomentKind,
+  day: string,
+  title: string,
+  meta: string,
+  notes: Note[],
+): TimelineMoment => ({
+  id,
+  spaceId: SPACE,
+  kind,
+  occurredAt: at(day),
+  title,
+  meta,
+  changes: notes.map(([k, text, documentId]) => ({ kind: k, text, documentId })),
+});
+
+const MOMENTS: TimelineMoment[] = [
+  moment("m_outreach", "email", "Aug 26", "Initial outreach", "Email", [
+    ["asked", "Creator program pitched for the Arcadia Pass summer"],
+  ]),
+  moment("m_brief", "document", "Sep 2", "RFP and brief received", "Document", [
+    ["new", "Brief shared by Alex Romero", "brief"],
+    ["decided", "18–34 gamers on Twitch and YouTube", "brief"],
+    ["decided", "Budget set at $100–130K", "brief"],
+  ]),
+  moment("m_first_call", "call", "Sep 5", "First call", "Call · 45 min", [
+    ["decided", "Two tentpole streams anchor the flight", "brief"],
+    ["changed", "TikTok moved to a secondary channel", "brief"],
+    ["next", "First proposal by Sep 9"],
+  ]),
+  moment("m_v1", "document", "Sep 9", "Proposal v1 shared", "Document", [
+    ["new", "v1: 14 creators, three tiers, $128K", "proposal"],
+  ]),
+  moment("m_v2_feedback", "email", "Sep 16", "Feedback on v2", "Email · 4 messages", [
+    ["changed", "Tier 1 cut from four creators to three", "proposal"],
+    ["changed", "Flight extended through August", "proposal"],
+    ["changed", "One Tier 1 creator to be dropped", "shortlist"],
+    ["next", "Revised proposal by Sep 22"],
+  ]),
+  moment("m_v3", "document", "Sep 22", "Proposal v3 shared", "Document", [
+    ["new", "v3: 12 creators, total down to $120K", "proposal"],
+    ["new", "v2: twelve selected, two alternates per tier", "shortlist"],
+  ]),
+  moment("m_walkthrough", "call", "Sep 25", "Proposal walkthrough", "Call · 35 min", [
+    ["new", "Walkthrough slides shared after the call", "deck"],
+    ["asked", "Swap one Tier 2 creator", "shortlist"],
+    ["asked", "How Arcadia Pass trials are measured"],
+    ["next", "Measurement plan Sep 26"],
+  ]),
+  moment("m_feedback_due", "pending", "Oct 6", "Your feedback on tiers", "Due", [
+    ["next", "Your consolidated feedback on the tiers", "proposal"],
+  ]),
+];
+
+// ─── Correspondence ─────────────────────────────────────────────────────────
+
+type MailRow = [momentId: string, day: string, call: boolean, subject: string, summary: string, people: string[], meta: string];
+const MAIL: MailRow[] = [
+  ["m_outreach", "Aug 26", false, "Creator program idea", "Northlight pitched a summer creator program for Arcadia Pass.", ["MC", "AR"], "2 messages"],
+  ["m_brief", "Sep 2", false, "Brief received", "Summer brief shared with a $100–130K budget.", ["AR", "MC"], "1 message"],
+  ["m_first_call", "Sep 5", true, "First call", "Agreed two tentpole streams; TikTok moved to secondary.", ["MC", "JA", "AR", "KL"], "45 min"],
+  ["m_v1", "Sep 9", false, "Proposal v1 sent", "Fourteen creators across three tiers at $128K.", ["MC", "AR"], "1 message"],
+  ["m_v2_feedback", "Sep 15", false, "Proposal v2 sent", "Thirteen creators over June and July at $124K.", ["MC", "AR"], "1 message"],
+  ["m_v2_feedback", "Sep 16", false, "Feedback on v2", "Fewer Tier 1 creators and a longer flight requested.", ["AR", "KL", "MC"], "4 messages"],
+  ["m_v3", "Sep 22", false, "Proposal v3 sent", "Tier 1 reduced to three; flight extended through August.", ["MC", "AR"], "1 message"],
+  ["m_walkthrough", "Sep 25", true, "Proposal walkthrough", "Asked about swapping one Tier 2 creator and trial measurement.", ["MC", "JA", "AR", "KL"], "35 min"],
+  ["m_feedback_due", "Sep 30", false, "Follow-up on tier feedback", "Alex confirmed consolidated comments by Oct 6.", ["MC", "AR"], "3 messages"],
+];
+
+const CORRESPONDENCE: CorrespondenceEntry[] = MAIL.map(
+  ([momentId, day, call, subject, summary, people, meta], i) => ({
+    id: `c_${i + 1}`,
+    spaceId: SPACE,
+    momentId,
+    kind: call ? "call" : "email",
+    occurredAt: at(day),
+    participantIds: people.map(pid),
+    subject,
+    summary,
+    meta,
+    reviewStatus: "approved",
+  }),
+);
+
+// ─── View ───────────────────────────────────────────────────────────────────
 
 export const fixture: ClientSpaceView = {
-  org: { id: "org_northlight", name: "Northlight", slug: "northlight" },
+  org: { id: "org_northlight", name: "Northlight Media", shortName: "Northlight", slug: "northlight" },
   account: {
     id: ACCOUNT,
     orgId: "org_northlight",
-    name: "Microsoft · Xbox",
-    parentName: "Microsoft",
-    logoText: "X",
-    logoColor: "#107c10",
+    name: "Lumen Interactive · Arcadia",
+    shortName: "Arcadia",
+    logoUrl: "/logos/arcadia.svg",
   },
   deal: {
     id: DEAL,
@@ -30,16 +238,12 @@ export const fixture: ClientSpaceView = {
     stage: "revisions",
     value: { amount: 120000, currency: "USD" },
     brief: {
-      budget: { amount: 120000, currency: "USD" },
-      audience: "Core and lapsed gamers, 18–34, US & UK",
-      platforms: ["YouTube", "TikTok", "Twitch"],
-      flight: { start: "2027-06-07", end: "2027-08-29" },
-      deliverables: [
-        "6 creator integrations",
-        "3 live streams",
-        "Paid amplification of top-performing cuts",
-      ],
-      measurement: ["Reach", "Completed views", "Game Pass sign-up lift"],
+      budget: { amount: 130000, currency: "USD" },
+      audience: "18–34 gamers",
+      platforms: ["Twitch", "YouTube"],
+      flight: { start: "2027-06-01", end: "2027-08-31" },
+      deliverables: ["Two tentpole livestreams", "Sponsored sessions", "Short-form cutdowns", "Community posts and codes"],
+      measurement: ["View-through", "Qualified sentiment", "Arcadia Pass trial sign-ups"],
     },
   },
   space: {
@@ -49,417 +253,26 @@ export const fixture: ClientSpaceView = {
     statusLabel: "Awaiting your feedback",
     statusDueDate: "2026-10-06",
     readOnly: false,
+    buyerLeadId: pid("AR"),
+    sellerLeadId: pid("MC"),
+    suggestedQuestions: ["What changed in v3?", "Show the creator breakdown", "What's the measurement plan?"],
   },
-  people: [
-    {
-      id: "p_maya",
-      name: "Maya Chen",
-      email: "maya.chen@xbox.example",
-      title: "Brand Manager, Game Pass",
-      company: "Microsoft · Xbox",
-      side: "buyer",
-      avatarColor: "#5b7c99",
-      membership: {
-        personId: "p_maya",
-        scope: "account",
-        scopeId: ACCOUNT,
-        side: "buyer",
-        presence: { kind: "viewing" },
-      },
+  people: PEOPLE.map(([initials, name, title, side, color, presence]) => ({
+    id: pid(initials),
+    name,
+    email: `${name.split(" ")[0].toLowerCase()}@${side === "buyer" ? "lumen" : "northlight"}.example`,
+    title,
+    side,
+    avatarColor: color,
+    membership: {
+      personId: pid(initials),
+      scope: "deal",
+      scopeId: DEAL,
+      side,
+      presence,
     },
-    {
-      id: "p_jordan",
-      name: "Jordan Ellis",
-      email: "jordan@wavelength.example",
-      title: "Media Lead, Wavelength",
-      company: "Wavelength Media",
-      side: "buyer",
-      avatarColor: "#a0785a",
-      membership: {
-        personId: "p_jordan",
-        scope: "deal",
-        scopeId: DEAL,
-        side: "buyer",
-        presence: { kind: "seen", at: "2026-09-30T16:20:00Z" },
-      },
-    },
-    {
-      id: "p_priya",
-      name: "Priya Nair",
-      email: "priya@wavelength.example",
-      title: "Planner, Wavelength",
-      company: "Wavelength Media",
-      side: "buyer",
-      avatarColor: "#8a7aa8",
-      membership: {
-        personId: "p_priya",
-        scope: "deal",
-        scopeId: DEAL,
-        side: "buyer",
-        presence: { kind: "invited", at: "2026-10-01T09:00:00Z" },
-      },
-    },
-    {
-      id: "p_sam",
-      name: "Sam Whitaker",
-      email: "sam@northlight.example",
-      title: "Partnerships Director",
-      company: "Northlight",
-      side: "seller",
-      avatarColor: "#1f6f4a",
-      membership: {
-        personId: "p_sam",
-        scope: "deal",
-        scopeId: DEAL,
-        side: "seller",
-        presence: { kind: "seen", at: "2026-10-02T08:45:00Z" },
-      },
-    },
-    {
-      id: "p_alex",
-      name: "Alex Rivera",
-      email: "alex@northlight.example",
-      title: "Creator Partnerships",
-      company: "Northlight",
-      side: "seller",
-      avatarColor: "#c06a4a",
-      membership: {
-        personId: "p_alex",
-        scope: "deal",
-        scopeId: DEAL,
-        side: "seller",
-        presence: { kind: "seen", at: "2026-09-30T11:10:00Z" },
-      },
-    },
-    {
-      id: "p_lena",
-      name: "Lena Okafor",
-      email: "lena@northlight.example",
-      title: "Head of Marketing",
-      company: "Northlight",
-      side: "seller",
-      avatarColor: "#3d6b78",
-      membership: {
-        personId: "p_lena",
-        scope: "account",
-        scopeId: ACCOUNT,
-        side: "seller",
-        presence: { kind: "seen", at: "2026-09-26T15:00:00Z" },
-      },
-    },
-  ],
-  documents: [
-    {
-      id: "doc_proposal",
-      spaceId: SPACE,
-      title: "Summer Creator Package — Proposal",
-      kind: "deck",
-      source: "google_drive",
-      pinned: true,
-      versions: [
-        {
-          id: "ver_proposal_1",
-          documentId: "doc_proposal",
-          number: 1,
-          committedAt: "2026-09-18T14:00:00Z",
-          sharedByPersonId: "p_sam",
-          summary: "Five creators across YouTube and Twitch, eight-week flight.",
-          pageCount: 14,
-          sections: [
-            { id: "s_p1_overview", heading: "Overview", page: 2, text: "A summer creator programme for Game Pass built around five Northlight creators on YouTube and Twitch over an eight-week flight from late June." },
-            { id: "s_p1_creators", heading: "Creator lineup", page: 5, text: "Five creators: two variety streamers, two shooter specialists and one cozy-games creator, with combined reach of 18M." },
-            { id: "s_p1_investment", heading: "Investment", page: 12, text: "Total investment $120,000 covering creator fees, production and $20,000 paid amplification." },
-          ],
-        },
-        {
-          id: "ver_proposal_2",
-          documentId: "doc_proposal",
-          number: 2,
-          committedAt: "2026-09-30T15:30:00Z",
-          sharedByPersonId: "p_sam",
-          summary: "Six creators, TikTok added, flight moved to June 7 – Aug 29.",
-          pageCount: 16,
-          sections: [
-            { id: "s_p2_overview", heading: "Overview", page: 2, text: "A summer creator programme for Game Pass with six creators across YouTube, TikTok and Twitch, running June 7 to August 29, 2027." },
-            { id: "s_p2_creators", heading: "Creator lineup", page: 5, text: "Six creators: one shooter specialist was swapped for a TikTok-first creator and a second cozy-games creator added. Combined reach 24M." },
-            { id: "s_p2_streams", heading: "Live streams", page: 9, text: "Three sponsored live streams timed to the June showcase, mid-July, and the August content drop." },
-            { id: "s_p2_investment", heading: "Investment", page: 14, text: "Total investment remains $120,000. Paid amplification reduced to $15,000 to fund the sixth creator." },
-          ],
-        },
-      ],
-    },
-    {
-      id: "doc_media_plan",
-      spaceId: SPACE,
-      title: "Media plan & flighting",
-      kind: "sheet",
-      source: "google_drive",
-      pinned: false,
-      versions: [
-        {
-          id: "ver_plan_1",
-          documentId: "doc_media_plan",
-          number: 1,
-          committedAt: "2026-09-18T14:05:00Z",
-          sharedByPersonId: "p_alex",
-          summary: "Week-by-week flighting for five creators.",
-          pageCount: 3,
-          sections: [
-            { id: "s_m1_flight", heading: "Flighting", page: 1, text: "Eight weeks from June 28. Two creator drops per week in weeks 1–4, one per week thereafter." },
-          ],
-        },
-        {
-          id: "ver_plan_2",
-          documentId: "doc_media_plan",
-          number: 2,
-          committedAt: "2026-09-30T15:35:00Z",
-          sharedByPersonId: "p_alex",
-          summary: "Twelve-week flight with TikTok bursts around live streams.",
-          pageCount: 4,
-          sections: [
-            { id: "s_m2_flight", heading: "Flighting", page: 1, text: "Twelve weeks from June 7 to August 29. TikTok bursts in the 48 hours around each live stream." },
-            { id: "s_m2_paid", heading: "Paid amplification", page: 3, text: "$15,000 paid amplification on the top two performing cuts, decided at week 3." },
-          ],
-        },
-      ],
-    },
-    {
-      id: "doc_brief",
-      spaceId: SPACE,
-      title: "Xbox Summer 2027 — Brief",
-      kind: "doc",
-      source: "upload",
-      pinned: false,
-      versions: [
-        {
-          id: "ver_brief_1",
-          documentId: "doc_brief",
-          number: 1,
-          committedAt: "2026-09-08T10:00:00Z",
-          sharedByPersonId: "p_maya",
-          summary: "Drive Game Pass sign-ups with lapsed 18–34 players.",
-          pageCount: 4,
-          sections: [
-            { id: "s_b1_objective", heading: "Objective", page: 1, text: "Drive Game Pass sign-ups among core and lapsed gamers aged 18–34 in the US and UK over summer 2027." },
-            { id: "s_b1_budget", heading: "Budget", page: 3, text: "Working budget of $120,000 inclusive of production and paid support." },
-          ],
-        },
-      ],
-    },
-    {
-      id: "doc_rate_card",
-      spaceId: SPACE,
-      title: "Creator rate card 2027",
-      kind: "pdf",
-      source: "upload",
-      pinned: false,
-      versions: [
-        {
-          id: "ver_rate_1",
-          documentId: "doc_rate_card",
-          number: 1,
-          committedAt: "2026-09-12T17:00:00Z",
-          sharedByPersonId: "p_sam",
-          summary: "Integration, stream and usage-rights pricing.",
-          pageCount: 2,
-          sections: [
-            { id: "s_r1_rates", heading: "Rates", page: 1, text: "Dedicated integrations from $9,000; sponsored live streams from $6,500; 90-day paid usage rights at 20% of fee." },
-          ],
-        },
-      ],
-    },
-    {
-      id: "doc_shortlist",
-      spaceId: SPACE,
-      title: "Creator shortlist",
-      kind: "sheet",
-      source: "google_drive",
-      pinned: false,
-      versions: [
-        {
-          id: "ver_short_1",
-          documentId: "doc_shortlist",
-          number: 1,
-          committedAt: "2026-09-30T15:40:00Z",
-          sharedByPersonId: "p_alex",
-          summary: "Six confirmed creators plus two alternates.",
-          pageCount: 2,
-          sections: [
-            { id: "s_s1_list", heading: "Shortlist", page: 1, text: "Six confirmed creators with audience splits; two alternates held for the TikTok slot if availability changes." },
-          ],
-        },
-      ],
-    },
-    {
-      id: "doc_measurement",
-      spaceId: SPACE,
-      title: "Measurement framework",
-      kind: "doc",
-      source: "google_drive",
-      pinned: false,
-      versions: [
-        {
-          id: "ver_meas_1",
-          documentId: "doc_measurement",
-          number: 1,
-          committedAt: "2026-09-30T15:45:00Z",
-          sharedByPersonId: "p_lena",
-          summary: "Reach, completed views, and Game Pass sign-up lift study.",
-          pageCount: 3,
-          sections: [
-            { id: "s_me1_kpis", heading: "KPIs", page: 1, text: "Primary KPI is Game Pass sign-up lift measured via a holdout study; secondary KPIs are reach and completed views." },
-          ],
-        },
-      ],
-    },
-  ],
-  moments: [
-    {
-      id: "m_brief",
-      spaceId: SPACE,
-      kind: "email",
-      occurredAt: "2026-09-08T10:00:00Z",
-      title: "Brief received",
-      summary: "Maya shared the Summer 2027 brief: Game Pass sign-ups, 18–34, $120K working budget.",
-      changes: [
-        { documentId: "doc_brief", kind: "new", text: "Brief shared by Xbox." },
-      ],
-    },
-    {
-      id: "m_kickoff",
-      spaceId: SPACE,
-      kind: "call",
-      occurredAt: "2026-09-12T16:00:00Z",
-      title: "Kickoff call",
-      summary: "Aligned on objectives and the $120K budget. Northlight shared its 2027 rate card.",
-      changes: [
-        { documentId: "doc_brief", kind: "decided", text: "Budget confirmed at $120K all-in." },
-        { documentId: "doc_rate_card", kind: "new", text: "2027 rate card shared." },
-      ],
-    },
-    {
-      id: "m_proposal_v1",
-      spaceId: SPACE,
-      kind: "document",
-      occurredAt: "2026-09-18T14:00:00Z",
-      title: "Proposal v1 shared",
-      summary: "First proposal and media plan: five creators on YouTube and Twitch over eight weeks.",
-      changes: [
-        { documentId: "doc_proposal", kind: "new", text: "Five creators, YouTube and Twitch." },
-        { documentId: "doc_media_plan", kind: "new", text: "Eight-week flight from June 28." },
-      ],
-    },
-    {
-      id: "m_feedback",
-      spaceId: SPACE,
-      kind: "email",
-      occurredAt: "2026-09-23T09:30:00Z",
-      title: "Feedback on v1",
-      summary: "Jordan asked to add TikTok, swap one shooter creator, and start the flight earlier in June.",
-      changes: [],
-    },
-    {
-      id: "m_revisions_call",
-      spaceId: SPACE,
-      kind: "call",
-      occurredAt: "2026-09-26T15:00:00Z",
-      title: "Revisions call",
-      summary: "Agreed six creators across three platforms, a June 7 start, and keeping the budget flat.",
-      changes: [
-        { documentId: "doc_proposal", kind: "decided", text: "Six creators across YouTube, TikTok and Twitch." },
-        { documentId: "doc_media_plan", kind: "decided", text: "Flight runs June 7 – Aug 29." },
-      ],
-    },
-    {
-      id: "m_proposal_v2",
-      spaceId: SPACE,
-      kind: "document",
-      occurredAt: "2026-09-30T15:30:00Z",
-      title: "Proposal v2 shared",
-      summary: "Revised proposal, plan, creator shortlist and measurement framework reflecting the revisions call.",
-      changes: [
-        { documentId: "doc_proposal", kind: "changed", text: "Sixth creator added; paid amplification cut to $15K." },
-        { documentId: "doc_media_plan", kind: "changed", text: "Twelve-week flight with TikTok bursts." },
-        { documentId: "doc_shortlist", kind: "new", text: "Six creators plus two alternates." },
-        { documentId: "doc_measurement", kind: "new", text: "Sign-up lift holdout study." },
-      ],
-    },
-    {
-      id: "m_pending",
-      spaceId: SPACE,
-      kind: "pending",
-      occurredAt: "2026-10-06T17:00:00Z",
-      title: "Your feedback on v2",
-      summary: "Sign-off on the creator lineup and flight so contracting can start.",
-      changes: [],
-    },
-  ],
-  correspondence: [
-    {
-      id: "c_brief",
-      spaceId: SPACE,
-      momentId: "m_brief",
-      kind: "email",
-      occurredAt: "2026-09-08T10:00:00Z",
-      authorPersonId: "p_maya",
-      subject: "Summer 2027 creator brief",
-      summary: "Shared the brief. Priority is Game Pass sign-ups among lapsed players; open to platform recommendations.",
-      reviewStatus: "approved",
-    },
-    {
-      id: "c_kickoff",
-      spaceId: SPACE,
-      momentId: "m_kickoff",
-      kind: "call",
-      occurredAt: "2026-09-12T16:00:00Z",
-      authorPersonId: "p_sam",
-      subject: "Kickoff call notes",
-      summary: "Confirmed $120K all-in. Xbox prefers creators with existing Game Pass affinity. Proposal due Sep 18.",
-      reviewStatus: "approved",
-    },
-    {
-      id: "c_v1_sent",
-      spaceId: SPACE,
-      momentId: "m_proposal_v1",
-      kind: "email",
-      occurredAt: "2026-09-18T14:00:00Z",
-      authorPersonId: "p_sam",
-      subject: "Proposal v1",
-      summary: "Sent the first proposal and media plan for review.",
-      reviewStatus: "approved",
-    },
-    {
-      id: "c_feedback",
-      spaceId: SPACE,
-      momentId: "m_feedback",
-      kind: "email",
-      occurredAt: "2026-09-23T09:30:00Z",
-      authorPersonId: "p_jordan",
-      subject: "Re: Proposal v1",
-      summary: "Requested TikTok coverage, swapping one shooter creator, and an early-June start to catch the showcase.",
-      reviewStatus: "approved",
-    },
-    {
-      id: "c_revisions",
-      spaceId: SPACE,
-      momentId: "m_revisions_call",
-      kind: "call",
-      occurredAt: "2026-09-26T15:00:00Z",
-      authorPersonId: "p_alex",
-      subject: "Revisions call notes",
-      summary: "Agreed six creators and a June 7 start. Budget stays at $120K by trimming paid amplification.",
-      reviewStatus: "approved",
-    },
-    {
-      id: "c_v2_sent",
-      spaceId: SPACE,
-      momentId: "m_proposal_v2",
-      kind: "email",
-      occurredAt: "2026-09-30T15:30:00Z",
-      authorPersonId: "p_sam",
-      subject: "Proposal v2 + shortlist",
-      summary: "Shared v2 with the shortlist and measurement framework. Asked for feedback by Oct 6.",
-      reviewStatus: "approved",
-    },
-  ],
+  })),
+  documents: DOCUMENTS,
+  moments: MOMENTS,
+  correspondence: CORRESPONDENCE,
 };

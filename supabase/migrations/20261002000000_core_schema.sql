@@ -16,12 +16,12 @@ create type deal_stage as enum (
 create type party_side as enum ('buyer', 'seller');
 create type space_initiator as enum ('seller', 'buyer');
 create type membership_scope as enum ('account', 'deal');
-create type document_kind as enum ('deck', 'doc', 'sheet', 'pdf');
+create type document_kind as enum ('doc', 'slides', 'sheet');
 create type document_source as enum ('upload', 'google_drive', 'onedrive', 'live_link');
 create type audit_kind as enum ('sensitive_info', 'numbers_match', 'brief_fidelity');
 create type audit_status as enum ('auditing', 'passed', 'flagged', 'overridden', 'blocked');
 create type moment_kind as enum ('email', 'call', 'document', 'pending');
-create type change_kind as enum ('changed', 'new', 'decided');
+create type change_kind as enum ('new', 'decided', 'changed', 'next', 'asked');
 create type correspondence_kind as enum ('email', 'call', 'slack', 'note');
 create type review_status as enum ('pending', 'approved', 'hidden');
 
@@ -30,6 +30,7 @@ create type review_status as enum ('pending', 'approved', 'hidden');
 create table orgs (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  short_name text not null,
   slug text not null unique,
   created_at timestamptz not null default now()
 );
@@ -48,10 +49,8 @@ create table accounts (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references orgs(id) on delete cascade,
   name text not null,
-  parent_name text,
-  logo_path text,
-  logo_text text not null,
-  logo_color text not null default '#1f6f4a',
+  short_name text not null,
+  logo_url text,
   hubspot_company_id text,
   created_at timestamptz not null default now()
 );
@@ -106,6 +105,9 @@ create table spaces (
   initiator space_initiator not null default 'seller',
   status_label text not null default 'In progress',
   status_due_date date,
+  buyer_lead_id uuid,   -- FK added after people exists
+  seller_lead_id uuid,
+  suggested_questions text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 
@@ -118,12 +120,15 @@ create table people (
   name text not null,
   email text not null,
   title text,
-  company text not null,
   side party_side not null,
   avatar_color text not null default '#7a8b7f',
   created_at timestamptz not null default now(),
   unique (org_id, email)
 );
+
+alter table spaces
+  add foreign key (buyer_lead_id) references people(id) on delete set null,
+  add foreign key (seller_lead_id) references people(id) on delete set null;
 
 -- Permissions follow the hierarchy: an account-scoped membership sees every
 -- deal in the account; a deal-scoped membership sees only that deal's space.
@@ -172,6 +177,7 @@ create table documents (
   -- Provider file id / URL for linked documents (owner side only).
   source_ref text,
   pinned boolean not null default false,
+  position int not null default 0,
   created_at timestamptz not null default now()
 );
 create index on documents (space_id);
@@ -184,7 +190,7 @@ create table document_versions (
   committed_at timestamptz not null default now(),
   shared_by uuid references people(id),
   summary text not null default '',
-  page_count int not null default 1,
+  page_count int,
   pdf_path text,            -- rendered PDF in the private bucket
   original_path text,       -- original upload (e.g. .pptx) for download
   thumbnail_path text,
@@ -198,12 +204,12 @@ create index on document_versions (document_id, number);
 create table document_sections (
   id uuid primary key default gen_random_uuid(),
   version_id uuid not null references document_versions(id) on delete cascade,
-  position int not null,
+  number int not null,       -- §1, §2 … (citation anchor)
   heading text not null,
-  page int not null,
-  body text not null
+  page int,
+  body text not null         -- paragraphs separated by blank lines
 );
-create index on document_sections (version_id, position);
+create index on document_sections (version_id, number);
 
 -- Owner-side only. The client never sees audits.
 create table audits (
@@ -229,7 +235,7 @@ create table timeline_moments (
   kind moment_kind not null,
   occurred_at timestamptz not null,
   title text not null,
-  summary text not null default '',
+  meta text not null default '',  -- "Call · 45 min", "Email · 4 messages"
   created_at timestamptz not null default now()
 );
 create index on timeline_moments (space_id, occurred_at);
@@ -237,7 +243,8 @@ create index on timeline_moments (space_id, occurred_at);
 create table moment_changes (
   id uuid primary key default gen_random_uuid(),
   moment_id uuid not null references timeline_moments(id) on delete cascade,
-  document_id uuid not null references documents(id) on delete cascade,
+  -- null = a note about the moment itself, shown in the moment banner
+  document_id uuid references documents(id) on delete cascade,
   position int not null default 0,
   kind change_kind not null,
   body text not null
@@ -250,9 +257,10 @@ create table correspondence_entries (
   moment_id uuid references timeline_moments(id) on delete set null,
   kind correspondence_kind not null,
   occurred_at timestamptz not null,
-  author_id uuid references people(id),
+  participant_ids uuid[] not null default '{}',
   subject text not null,
   summary text not null,          -- AI draft
+  meta text not null default '',  -- "4 messages", "45 min"
   edited_summary text,            -- owner edit, shown in preference
   source_url text,                -- exact source thread/message (owner side)
   source_ref text,
@@ -262,6 +270,14 @@ create table correspondence_entries (
   created_at timestamptz not null default now()
 );
 create index on correspondence_entries (space_id, occurred_at);
+
+-- ─── Marketing site ─────────────────────────────────────────────────────────
+
+create table access_requests (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  created_at timestamptz not null default now()
+);
 
 -- ─── Row-level security ─────────────────────────────────────────────────────
 -- Seller users see everything in orgs they belong to. There are no anon
@@ -324,6 +340,7 @@ alter table audits enable row level security;
 alter table timeline_moments enable row level security;
 alter table moment_changes enable row level security;
 alter table correspondence_entries enable row level security;
+alter table access_requests enable row level security; -- service role only
 
 create policy org_read on orgs for select using (is_org_member(id));
 create policy org_members_read on org_members for select using (is_org_member(org_id));

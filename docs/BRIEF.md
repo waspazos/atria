@@ -88,7 +88,7 @@ Behaviour:
 ## Suggested build order
 
 1. Data model: accounts, deals (with stage state machine), spaces (with `initiator`), people and memberships, documents, versions, timeline events, correspondence entries.
-2. Seed data matching the design (Microsoft · Xbox, Summer Creator Package, $120K, Northlight-style seller team) so the client space renders realistically.
+2. Seed data matching the design (Summer Creator Package, $120K, Northlight-style seller team) so the client space renders realistically. **Demo data is fictional and shareable:** the client is "Lumen Interactive · Arcadia" (a made-up publisher with an "Arcadia Pass" subscription), not a real brand, and no real names, numbers or documents are used. Real client data never goes in the seed.
 3. Client space UI against seed data, including the timeline-driven state.
 4. Document pipeline: upload → convert → extract → store version → viewer.
 5. Google Drive link + commit snapshot.

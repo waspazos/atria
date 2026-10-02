@@ -7,7 +7,7 @@ Client-facing deal spaces for media and sponsorship sales. See [docs/BRIEF.md](d
 ```bash
 npm install
 cp .env.example .env.local   # optional; without Supabase the app uses fixture data
-npm run dev                  # http://localhost:3000/s/demo-xbox-summer
+npm run dev                  # http://localhost:3000/s/demo-arcadia-summer
 ```
 
 Checks: `npm run typecheck && npm run lint && npm test && npm run build`
