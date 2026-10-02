@@ -1,0 +1,26 @@
+/* Design tokens. Placeholder values from the brief's design language until
+   the Claude Design file is imported. */
+:root {
+  --bg: #f7f4ef;
+  --surface: #ffffff;
+  --ink: #1d1f1c;
+  --ink-muted: #6b6e68;
+  --line: #e6e1d8;
+  --accent: #1f6f4a;
+  --accent-soft: #e3efe7;
+  --shadow: 0 1px 2px rgb(30 25 15 / 0.05), 0 8px 24px rgb(30 25 15 / 0.06);
+  --radius: 14px;
+  --font-display: var(--font-serif), Georgia, serif;
+  --font-body: var(--font-sans), system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 500; }
+a { color: var(--accent); }
